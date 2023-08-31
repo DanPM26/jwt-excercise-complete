@@ -505,6 +505,8 @@ module.exports = router
  4. Crea un controlador para realizar la edición de la contraseña por una nueva
 
  ```Javascript
+ controllers > userController.js 
+
 const userModel = require('../models/users')
 const bcrypt = require('bcrypt');
 
@@ -526,6 +528,8 @@ module.exports = {
  ```
  5. Crea un nuevo archivo dentro de apis > password.js para agregar la logica del cambio de contraseñas
  ``` Javascript
+ apis > password.js
+ 
  const express = require('express')
 const router = express.Router()
 const bcrypt = require('bcrypt');
