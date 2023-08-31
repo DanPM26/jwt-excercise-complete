@@ -456,20 +456,24 @@ module.exports = authService
   
       let userRole;
   
-      if (user.role === 'admin' && await bcrypt.compare(password, user.password)){
-        userRole = {
-          ...user,
-          role: 'admin',
-          // No se te olvide agregar la ruta para el cambio de contraseña
-          permissions: ['admin:yo', 'pass:change']
-        };
+     if (user.role === 'admin'){
+        if(await bcrypt.compare(password, user.password)){
+          userRole = {
+            ...user,
+            role: 'admin',
+            //Agregar ruta de cambio de contraseña
+            permissions: ['admin:yo', 'pass:change']
+          };
+        }
       } else {
-        userRole = {
-          ...user,
-          role: 'usuario',
-              // No se te olvide agregar la ruta para el cambio de contraseña
-          permissions: ['users:me', 'pass:change']
-        };
+        if(await bcrypt.compare(password, user.password)){
+          userRole = {
+            ...user,
+            role: 'usuario',
+            // agregar ruta de cambio de contraseña
+            permissions: ['users:me', 'pass:change']
+          };
+        }
       }
   
       const token = jwt.sign({
@@ -520,7 +524,7 @@ module.exports = {
     updateUser
 }
  ```
- 5. Crea un nuevo archivo dentro de apis > password.js para agregar la logica del cambio de ocntraseñas
+ 5. Crea un nuevo archivo dentro de apis > password.js para agregar la logica del cambio de contraseñas
  ``` Javascript
  const express = require('express')
 const router = express.Router()
@@ -557,7 +561,7 @@ router.put('/change', async (req, res) => {
   
   module.exports = router;
  ```
-  ## Realiza las pruebas 
+  ## Realiza las pruebas de autenticación
  ```
  // Cambio de contraseña
  http://localhost:4003/api/v1/auth/login
@@ -569,7 +573,147 @@ router.put('/change', async (req, res) => {
     "newPassword": "Laislacenteno"
  } 
  ```
+4. FRONTEND
+``` jsx
+components > ChangePassword.js
 
+import React from 'react'
+import { useContext } from 'react'
+import { UserContext } from '../context/UserContext';
+import { Col, Container, Row, Form, Button } from 'react-bootstrap'
+import axios from 'axios';
+
+const ChangePassword = () => {
+    const {userData, setUserData} = useContext(UserContext)
+   
+
+    const changePassword = async () => {
+        const url = 'http://localhost:4003/api/v1/change'
+        const result = await axios.put(url, userData)
+        console.log(result)
+    }
+
+    const handleChange = (e) => {
+        const { name, value } = e.target
+        setUserData({
+          ...userData,
+          [name]: value
+        })
+        console.log(userData)
+      }
+
+  return (
+    <Container>
+    <Row>
+      <Col md={12}>
+        <Form>
+          <Form.Group className="mb-3">
+            <Form.Label>Email</Form.Label>
+            <Form.Control type="email" onChange={handleChange} name="email" placeholder="Enter email" />
+          </Form.Group>
+          <Form.Group className="mb-3">
+            <Form.Label>Password</Form.Label>
+            <Form.Control type="password" onChange={handleChange} name="password" placeholder="Password" />
+          </Form.Group>
+          <Form.Group className="mb-3">
+            <Form.Label> New Password</Form.Label>
+            <Form.Control type="password" onChange={handleChange} name="newPassword" placeholder="Password" />
+          </Form.Group>
+          <Button variant="primary" type="button" onClick={() => changePassword()}>
+            Submit
+          </Button>
+        </Form>
+      </Col>
+    </Row>
+  </Container>
+  )
+}
+
+export default ChangePassword
+```
+5. Agregamos el Provider 
+``` jsx
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import App from './App'
+import FormUser from './components/FormUser'
+import LoginForm from './components/LoginForm'
+import './index.css'
+import 'bootstrap/dist/css/bootstrap.min.css';
+import {
+  createBrowserRouter,
+  RouterProvider,
+} from "react-router-dom";
+import Profile from './components/Profile'
+import UserProvider from './context/UserContext'
+import { PayPalScriptProvider } from "@paypal/react-paypal-js";
+import ChangePassword from './components/ChangePassword'
+import Admin from './components/Admin'
+import { ProductProvider } from './context/ProductContext'
+
+const router = createBrowserRouter([
+  {
+    path: "/",
+    element:(<ProductProvider><App /></ProductProvider>) ,
+  },
+  {
+    path: "/sign-up",
+    element: (
+      <UserProvider>
+        <PayPalScriptProvider options={{ "client-id": "AVfU3m6npRpMW9LPnJylKbsHIocAXqvvkwsL-Fq4BlEf7E9wwuWfRY1ya8Tf_myL-sP95DAz7xlapfTV",
+      components: "buttons",
+      currency: "USD" }} >
+          <FormUser />
+        </PayPalScriptProvider>
+      </UserProvider>
+    ),
+  },
+  {
+    path: "/login",
+    element: (
+      <UserProvider>
+        <PayPalScriptProvider>
+          <LoginForm />
+        </PayPalScriptProvider>
+      </UserProvider>
+    ),
+  },
+  {
+    path: "/profile",
+    element: (
+      <UserProvider>
+        <PayPalScriptProvider>
+          <Profile />
+        </PayPalScriptProvider>
+      </UserProvider>
+    ),
+  },
+{
+  path:'/admin',
+element: (<UserProvider>
+  <ProductProvider>
+    <Admin />
+    </ProductProvider>
+    </UserProvider>)
+},
+  {
+    path: "/changePassword",
+    element: (
+      <UserProvider>
+          <ChangePassword/> 
+      </UserProvider>
+    ),
+  }
+]);
+
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <RouterProvider router={router} />
+  </React.StrictMode>
+
+)
+```
 
 # Context API
 Basandonos en el ejemplo anterior, nos localizaremos en el proyecto Vite-React para realizar la conexión de nuestro back-end con el front-end.
@@ -1500,268 +1644,3 @@ const Admin = () => {
 
 export default Admin
 ``` 
-## Cambio de contraseña 
-
-1. Instanciamos una clase en la carpeta services, y agregamos un documento llamado password.js
-``` Javascript
-services > password.js
-
-const passwordService = class {
-    constructor(userService){
-        this.PasswordService = userService
-    }
-
-    async confirm(email){
-        const user = await this.PasswordService.getByEmail(email)
-        if(user){
-            console.log('Usuario existe')
-        } else {
-            throw new Error('Usuario no encontrado')
-        }
-    }
-
-   async change(email,password,newPassword){
-    const user = await this.PasswordService.changePassword(email,password,newPassword)
-
-    if(user){
-       console.log("exito")
-    } else {
-        throw new Error('Hubo algun error')
-    }
-   }
-}
-
-module.exports = passwordService
-```
-2. Hacemos un cambio en la logica del auth.js
-
-``` Javascript
-const bcrypt = require('bcrypt')
-
-const authService = class{
-    constructor(userService){
-        this.UserService = userService
-    }
-
-    async login(email,password){
-        const user = await this.UserService.getByEmail(email)
-        console.log("Usuario recuperado: ", user);
-
-        // se hizo el cambio de lógica para que se autorizara el cambiod e ocntraseña
-        if(user){
-            const isPasswordMatch = await bcrypt.compare(password, user.password);
-            console.log("Comparación de contraseñas: ", isPasswordMatch);
-            return user.toObject();
-        } else if(!user){
-            throw new Error('usuario no encontrado')
-        } else {
-            throw new Error('No autorizado')
-        }
-    }
-
-    
-}
-
-module.exports = authService
-```
-3. Por último agregamos dentro de la carpeta apis
-
-``` Javascript
-apis > password.js
-
-const express = require('express')
-const router = express.Router()
-const passwordService = require('../services/password')
-const userService = require('../services/users')
-const userModel = require('../models/users')
-
-const UserService = new userService(userModel)
-const PasswordService = new passwordService(UserService)
-
-router.post('/', async(req,res)=>{
-    const {email} = req.body
-    try {
-        await PasswordService.confirm(email)
-        res.send({
-            message: 'Usuario encontrado'
-        })
-    } catch (error) {
-        return res.status(403).send({
-            message: 'Usuario no encontrado:('
-        })
-    }
-})
-
-
-router.put('/', async(req,res)=>{
-    const {email,password, newPassword} = req.body
-
-    try {  
-        await PasswordService.change(email,password,newPassword)
-        res.send({
-            message: 'Contraseña actualizada'
-        })
-
-    } catch (error) {
-        if (error.message === "La contraseña actual no es correcta") {
-            return res.status(401).send({
-                message: 'La contraseña actual no es correcta'
-            })
-        } else {
-            return res.status(500).send({
-                message: 'Error al actualizar la contraseña'
-            })
-        }
-    }
-})
-
-module.exports = router
-```
-``` Javascript
-apis > index.js
-
-const passwordRouter = require('./password')
-router.use('/change', passwordRouter)
-```
-
-4. FRONTEND
-``` jsx
-components > ChangePassword.js
-
-import React from 'react'
-import { useContext } from 'react'
-import { UserContext } from '../context/UserContext';
-import { Col, Container, Row, Form, Button } from 'react-bootstrap'
-import axios from 'axios';
-
-const ChangePassword = () => {
-    const {userData, setUserData} = useContext(UserContext)
-   
-
-    const changePassword = async () => {
-        const url = 'http://localhost:4003/api/v1/change'
-        const result = await axios.put(url, userData)
-        console.log(result)
-    }
-
-    const handleChange = (e) => {
-        const { name, value } = e.target
-        setUserData({
-          ...userData,
-          [name]: value
-        })
-        console.log(userData)
-      }
-
-  return (
-    <Container>
-    <Row>
-      <Col md={12}>
-        <Form>
-          <Form.Group className="mb-3">
-            <Form.Label>Email</Form.Label>
-            <Form.Control type="email" onChange={handleChange} name="email" placeholder="Enter email" />
-          </Form.Group>
-          <Form.Group className="mb-3">
-            <Form.Label>Password</Form.Label>
-            <Form.Control type="password" onChange={handleChange} name="password" placeholder="Password" />
-          </Form.Group>
-          <Form.Group className="mb-3">
-            <Form.Label> New Password</Form.Label>
-            <Form.Control type="password" onChange={handleChange} name="newPassword" placeholder="Password" />
-          </Form.Group>
-          <Button variant="primary" type="button" onClick={() => changePassword()}>
-            Submit
-          </Button>
-        </Form>
-      </Col>
-    </Row>
-  </Container>
-  )
-}
-
-export default ChangePassword
-```
-5. Agregamos el Provider 
-``` jsx
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import App from './App'
-import FormUser from './components/FormUser'
-import LoginForm from './components/LoginForm'
-import './index.css'
-import 'bootstrap/dist/css/bootstrap.min.css';
-import {
-  createBrowserRouter,
-  RouterProvider,
-} from "react-router-dom";
-import Profile from './components/Profile'
-import UserProvider from './context/UserContext'
-import { PayPalScriptProvider } from "@paypal/react-paypal-js";
-import ChangePassword from './components/ChangePassword'
-import Admin from './components/Admin'
-import { ProductProvider } from './context/ProductContext'
-
-const router = createBrowserRouter([
-  {
-    path: "/",
-    element:(<ProductProvider><App /></ProductProvider>) ,
-  },
-  {
-    path: "/sign-up",
-    element: (
-      <UserProvider>
-        <PayPalScriptProvider options={{ "client-id": "AVfU3m6npRpMW9LPnJylKbsHIocAXqvvkwsL-Fq4BlEf7E9wwuWfRY1ya8Tf_myL-sP95DAz7xlapfTV",
-      components: "buttons",
-      currency: "USD" }} >
-          <FormUser />
-        </PayPalScriptProvider>
-      </UserProvider>
-    ),
-  },
-  {
-    path: "/login",
-    element: (
-      <UserProvider>
-        <PayPalScriptProvider>
-          <LoginForm />
-        </PayPalScriptProvider>
-      </UserProvider>
-    ),
-  },
-  {
-    path: "/profile",
-    element: (
-      <UserProvider>
-        <PayPalScriptProvider>
-          <Profile />
-        </PayPalScriptProvider>
-      </UserProvider>
-    ),
-  },
-{
-  path:'/admin',
-element: (<UserProvider>
-  <ProductProvider>
-    <Admin />
-    </ProductProvider>
-    </UserProvider>)
-},
-  {
-    path: "/changePassword",
-    element: (
-      <UserProvider>
-          <ChangePassword/> 
-      </UserProvider>
-    ),
-  }
-]);
-
-
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <RouterProvider router={router} />
-  </React.StrictMode>
-
-)
-```
